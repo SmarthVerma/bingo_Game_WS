@@ -90,7 +90,7 @@ class BingoStateManager {
         where: { gameId: payload.gameId },
         data: {
           gameWinnerId: { set: payload.winner.id },
-          winMethod: payload.winMethod,
+          winMethod: payload.gameEndMethod,
         },
       });
 

@@ -311,5 +311,5 @@ export interface EndGame {
     loserGoal: Goals[];
     lineCount: number;
   };
-  winMethod: GameEndMethod;
+  gameEndMethod: GameEndMethod;
 }

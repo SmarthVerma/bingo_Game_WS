@@ -63,7 +63,7 @@ const FindMatch = () => {
     };
 
     return (
-        <div className="  border border-gray-500/25 bg-gray-800 rounded-xl flex flex-col items-center justify-center gap-3 relative" ref={dropdownRef}>
+        <div className=" w-full h-full  border border-gray-500/25 bg-gray-800 rounded-xl flex flex-col items-center justify-center gap-3 relative" ref={dropdownRef}>
             {/* Game modes dropdown appearing upwards */}
             <div className="w-full max-w-md relative">
                 {showModes && (

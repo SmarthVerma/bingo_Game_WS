@@ -121,7 +121,10 @@ export class Game {
     };
   }
 
-  private mmrAllocation(winnerSocket: WebSocket): {
+  private mmrAllocation(
+    winnerSocket: WebSocket,
+    gameEndMethod?: GameEndMethod
+  ): {
     winnerMMR: any;
     loserMMR: any;
   } {
@@ -129,8 +132,8 @@ export class Game {
       this.getPlayerContext(winnerSocket);
     let totalWinningPoints = 0;
     let totalLosingPoints = 0;
-    const baseWinningPoints = Math.floor(Math.random() * 5) + 20;
-    const baseLosingPoints = Math.floor(Math.random() * 5) + 35;
+    let baseWinningPoints: number = Math.floor(Math.random() * 5) + 20;
+    let baseLosingPoints: number = Math.floor(Math.random() * 5) + 35;
 
     // now calculate bonus points on basis of goals
     let bonusPoints = 0;
@@ -175,6 +178,25 @@ export class Game {
         }
       }
     });
+
+    if (gameEndMethod == GameEndMethod.RESIGNATION) {
+      const linesLeft = 5 - opponentPlayerBoard.LineCount;
+      // early resignation will be punished with default value of lossingBasePoints
+      if (linesLeft === 1) {
+        console.log("before Lossing points", baseLosingPoints);
+        baseLosingPoints -= Math.floor(Math.random() * (6 - 4 + 1)) + 4; // Deduct between 4 and 6
+        console.log("after Lossing points", baseLosingPoints);
+      } else if (linesLeft === 2) {
+        baseLosingPoints -= Math.floor(Math.random() * (12 - 10 + 1)) + 10; // Deduct between 10 and 12
+      } else if (linesLeft === 3) {
+        baseLosingPoints -= Math.floor(Math.random() * (15 - 12 + 1)) + 12; // Deduct between 12 and 15
+      } else if (linesLeft === 4) {
+        baseLosingPoints -= Math.floor(Math.random() * (18 - 17 + 1)) + 17; // Deduct between 17 and 18
+      } else if (linesLeft === 5) {
+        baseLosingPoints -= 20; // Deduct 20
+      }
+    }
+
     totalWinningPoints +=
       baseWinningPoints +
       firstBloodPoints +
@@ -182,6 +204,7 @@ export class Game {
       tripleKillPoints +
       perfectionistPoints +
       rampagePoints;
+
     totalLosingPoints += baseLosingPoints;
     return {
       winnerMMR: {
@@ -247,7 +270,7 @@ export class Game {
           loserGoal: opponentPlayerBoard.getGoals(),
           lineCount: opponentPlayerBoard.LineCount,
         },
-        winMethod: GameEndMethod.BINGO,
+        gameEndMethod: GameEndMethod.BINGO,
       };
     } else if (opponentPlayerBoard.isVictory()) {
       const { winnerMMR, loserMMR } = this.mmrAllocation(opponentPlayerSocket);
@@ -280,39 +303,57 @@ export class Game {
           },
           lineCount: currentPlayerBoard.LineCount,
         },
-        winMethod: GameEndMethod.BINGO,
+        gameEndMethod: GameEndMethod.BINGO,
       };
     }
 
     return null;
   }
 
-  // private resignationEndGame(socket: WebSocket) {
-  //   const {
-  //     currentPlayerBoard,
-  //     opponentPlayerBoard,
-  //     currentPlayerSocket,
-  //     opponentPlayerSocket,
-  //   } = this.getPlayerContext(socket);
+  private resignationEndGame(socket: WebSocket): EndGame {
+    const {
+      currentPlayerBoard,
+      opponentPlayerBoard,
+      currentPlayerSocket,
+      opponentPlayerSocket,
+      currentPlayer,
+      opponentPlayer,
+    } = this.getPlayerContext(socket);
 
-  //   // const { winner, loser } = this.mmrAllocation(opponentPlayerSocket);
+    const { loserMMR, winnerMMR } = this.mmrAllocation(opponentPlayerSocket, GameEndMethod.RESIGNATION);
 
-  //   const VictoryPayload: PAYLOAD_GET_VICTORY["payload"] = {
-  //     method: GameEndMethod.RESIGNATION,
-  //     message: "Your opponent resigned. You won!",
-  //     data: winner, // as currentSocket resigned
-  //   };
-  //   const LostPayload: PAYLOAD_GET_LOST["payload"] = {
-  //     method: GameEndMethod.RESIGNATION,
-  //     message: "You resigned and lost the game.",
-  //     data: loser,
-  //   };
+    const VictoryPayload: PAYLOAD_GET_VICTORY["payload"] = {
+      method: GameEndMethod.RESIGNATION,
+      message: "Your opponent resigned. You won!",
+      data: winnerMMR, // as currentSocket resigned
+    };
+    const LostPayload: PAYLOAD_GET_LOST["payload"] = {
+      method: GameEndMethod.RESIGNATION,
+      message: "You resigned and lost the game.",
+      data: loserMMR,
+    };
 
-  //   // Simplified logic
-  //   sendPayload(currentPlayerSocket, GET_LOST, LostPayload);
-  //   sendPayload(opponentPlayerSocket, GET_VICTORY, VictoryPayload);
-  //   console.log("Game ended due to resignation.");
-  // }
+    // Simplified logic
+    sendPayload(currentPlayerSocket, GET_LOST, LostPayload);
+    sendPayload(opponentPlayerSocket, GET_VICTORY, VictoryPayload);
+    console.log("Game ended due to resignation.");
+
+    return {
+      winner: {
+        id: opponentPlayer.user.bingoProfile.id,
+        lineCount: opponentPlayerBoard.LineCount,
+        winnerMMR: winnerMMR,
+        winnerGoal: opponentPlayerBoard.getGoals(),
+      },
+      loser: {
+        id: currentPlayer.user.bingoProfile.id,
+        lineCount: currentPlayerBoard.LineCount,
+        loserMMR: loserMMR,
+        loserGoal: currentPlayerBoard.getGoals(),
+      },
+      gameEndMethod: GameEndMethod.RESIGNATION,
+    };
+  }
 
   private endGame(
     currentPlayerSocket: WebSocket,
@@ -320,14 +361,27 @@ export class Game {
   ) {
     switch (gameEndMethod) {
       case GameEndMethod.BINGO: {
-        const { winner, loser, winMethod } =
+        const { winner, loser, gameEndMethod } =
           this.bingoEndGame(currentPlayerSocket)!;
         // save this to end result
-        redis_saveEndGame({ gameId: this.gameId, winner, loser, winMethod }); // sent as obj
+        redis_saveEndGame({
+          gameId: this.gameId,
+          winner,
+          loser,
+          gameEndMethod,
+        }); // sent as obj
         break;
       }
       case GameEndMethod.RESIGNATION: {
-        // this.resignationEndGame(currentPlayerSocket);
+        const { winner, loser, gameEndMethod } =
+          this.resignationEndGame(currentPlayerSocket);
+        // save this to end result
+        redis_saveEndGame({
+          gameId: this.gameId,
+          winner,
+          loser,
+          gameEndMethod,
+        });
         break;
       }
       // TODO abondon logic and when it get invoked

@@ -18,6 +18,8 @@ import {
   PAYLOAD_GET_RECIEVE_EMOTE,
   GET_UPDATED_GAME,
   PAYLOAD_GET_UPDATED_GAME,
+  PUT_RESIGN,
+  PAYLOAD_PUT_RESIGN,
 } from "@repo/games/client/bingo/messages";
 import { MessageType, PAYLOAD_GET_GAME, PAYLOAD_GET_RESPONSE, PAYLOAD_GET_CHECKBOXES, PAYLOAD_PUT_GET_CHECK_MARK, PAYLOAD_GET_VICTORY, PAYLOAD_GET_LOST } from "@repo/games/client/bingo/messages";
 import { useDialogContext } from "@/context/DialogContext";
@@ -144,6 +146,11 @@ const {setIsVictory, isLost, isMatchFound, isVictory, lostData, matchFoundData, 
     sendData(PUT_SEND_EMOTE, { gameId, emote });
   }
 
+  const sendResign = () => {
+    const data : PAYLOAD_PUT_RESIGN['payload'] = {gameId} 
+    sendData(PUT_RESIGN, data)
+  }
+
   return {
     gameBoard,
     checkedBoxes,
@@ -169,6 +176,7 @@ const {setIsVictory, isLost, isMatchFound, isVictory, lostData, matchFoundData, 
     setIsVictory, // for dialog
     setIsLost, // for dialog
     findMatch,
+    sendResign,
     addCheck,
     sendEmote,
     cancelFindMatch,
